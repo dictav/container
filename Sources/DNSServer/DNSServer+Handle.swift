@@ -37,13 +37,13 @@ extension DNSServer {
             }
         }
 
-        self.log?.debug("deserializing message")
-        let query = try Message(deserialize: data)
-        self.log?.debug("processing query: \(query.questions)")
-
         // always send response
         let responseData: Data
         do {
+            self.log?.debug("deserializing message")
+            let query = try Message(deserialize: data)
+            self.log?.debug("processing query: \(query.questions)")
+
             self.log?.debug("awaiting processing")
             var response =
                 try await handler.answer(query: query)
@@ -65,12 +65,12 @@ extension DNSServer {
             self.log?.debug("serializing response")
             responseData = try response.serialize()
         } catch {
-            self.log?.error("error processing message from \(query): \(error)")
+            self.log?.error("error processing message: \(error)")
             let response = Message(
-                id: query.id,
+                id: 0,
                 type: .response,
-                returnCode: .notImplemented,
-                questions: query.questions,
+                returnCode: .formatError,
+                questions: [],
                 answers: []
             )
             responseData = try response.serialize()
