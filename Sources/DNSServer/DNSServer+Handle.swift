@@ -38,11 +38,8 @@ extension DNSServer {
         }
 
         self.log?.debug("deserializing message")
-        let query: Message
-        do {
-            query = try Message(deserialize: data)
-        } catch {
-            self.log?.error("failed to deserialize message from \(packet.remoteAddress): \(error)")
+        guard let query = try? Message(deserialize: data) else {
+            self.log?.error("failed to deserialize message from \(packet.remoteAddress)")
             return
         }
 
