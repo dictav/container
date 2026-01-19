@@ -32,7 +32,7 @@ extension APIServer {
             abstract: "Start helper for the API server"
         )
 
-        static let listenAddress = "127.0.0.1"
+        static let listenAddress = "0.0.0.0"
         static let dnsPort = 2053
 
         @Flag(name: .long, help: "Enable debug logging")

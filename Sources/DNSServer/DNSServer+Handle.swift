@@ -38,11 +38,18 @@ extension DNSServer {
         }
 
         self.log?.debug("deserializing message")
-        let query = try Message(deserialize: data)
+        let query: Message
+        do {
+            query = try Message(deserialize: data)
+        } catch {
+            self.log?.error("failed to deserialize message from \(packet.remoteAddress): \(error)")
+            return
+        }
+
         self.log?.debug("processing query: \(query.questions)")
 
         // always send response
-        let responseData: Data
+        let responseData: Data?
         do {
             self.log?.debug("awaiting processing")
             var response =
@@ -73,12 +80,18 @@ extension DNSServer {
                 questions: query.questions,
                 answers: []
             )
-            responseData = try response.serialize()
+            responseData = try? response.serialize()
         }
 
-        self.log?.debug("sending response for \(query.id)")
-        let rData = ByteBuffer(bytes: responseData)
-        try? await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+        if let responseData {
+            self.log?.debug("sending response for \(query.id)")
+            let rData = ByteBuffer(bytes: responseData)
+            do {
+                try await outbound.write(AddressedEnvelope(remoteAddress: packet.remoteAddress, data: rData))
+            } catch {
+                self.log?.error("failed to write DNS response to \(packet.remoteAddress): \(error)")
+            }
+        }
 
         self.log?.debug("processing done")
 
