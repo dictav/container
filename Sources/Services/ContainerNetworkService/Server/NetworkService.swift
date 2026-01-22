@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 import ContainerNetworkServiceClient
+import ContainerPersistence
 import ContainerResource
 import ContainerXPC
 import ContainerizationError
@@ -62,7 +63,15 @@ public actor NetworkService: Sendable {
             throw ContainerizationError(.invalidState, message: "invalid network state - network \(state.id) must be running")
         }
 
-        let hostname = try message.hostname()
+        var hostname = try message.hostname()
+        if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain), !hostname.contains(".") {
+            if state.id == "default" || state.id.isEmpty {
+                hostname = "\(hostname).\(dnsDomain)."
+            } else {
+                hostname = "\(hostname).\(state.id).\(dnsDomain)."
+            }
+        }
+
         let macAddress =
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
