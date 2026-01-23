@@ -197,7 +197,13 @@ public struct Utility {
             }
             config.networks = []
         } else {
-            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks)
+            let baseDomain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            config.networks = try getAttachmentConfigurations(
+                containerId: config.id,
+                networks: parsedNetworks,
+                aliases: management.networkAlias,
+                baseDomain: baseDomain
+            )
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
@@ -209,7 +215,12 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let baseDomain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            var domain = baseDomain
+            let firstNetworkName = parsedNetworks.first?.name ?? ClientNetwork.defaultNetworkName
+            if let baseDomainValue = baseDomain, firstNetworkName != ClientNetwork.defaultNetworkName, !firstNetworkName.isEmpty {
+                domain = "\(firstNetworkName).\(baseDomainValue)"
+            }
             config.dns = .init(
                 nameservers: management.dns.nameservers,
                 domain: domain,
@@ -238,13 +249,20 @@ public struct Utility {
         // to enable socket forwarding from container to host.
         config.publishedSockets = try Parser.publishSockets(management.publishSockets)
 
+        config.extraHosts = try Parser.addHosts(management.addHost)
+
         config.ssh = management.ssh
         config.readOnly = management.readOnly
 
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(
+        containerId: String,
+        networks: [Parser.ParsedNetwork],
+        aliases: [String],
+        baseDomain: String? = DefaultsStore.getOptional(key: .defaultDNSDomain)
+    ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
             if let mac = network.macAddress {
@@ -252,18 +270,33 @@ public struct Utility {
             }
         }
 
-        // make an FQDN for the first interface
-        let fqdn: String?
-        if !containerId.contains(".") {
-            // add default domain if it exists, and container ID is unqualified
-            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
-                fqdn = "\(containerId).\(dnsDomain)."
-            } else {
-                fqdn = nil
+        func getHostname(for networkName: String) -> String {
+            guard let domain = baseDomain, !containerId.contains(".") else {
+                guard containerId.contains(".") else {
+                    return containerId
+                }
+                return containerId.hasSuffix(".") ? containerId : "\(containerId)."
             }
-        } else {
-            // use container ID directly if fully qualified
-            fqdn = "\(containerId)."
+            guard networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty else {
+                return "\(containerId).\(networkName).\(domain)."
+            }
+            return "\(containerId).\(domain)."
+        }
+
+        func getAliases(for networkName: String) -> [String] {
+            aliases.map { alias in
+                guard let domain = baseDomain else {
+                    guard alias.contains(".") else {
+                        return alias
+                    }
+                    return alias.hasSuffix(".") ? alias : "\(alias)."
+                }
+                let cleanAlias = alias.hasSuffix(".") ? String(alias.dropLast()) : alias
+                guard networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty else {
+                    return "\(cleanAlias).\(networkName).\(domain)."
+                }
+                return "\(cleanAlias).\(domain)."
+            }
         }
 
         guard networks.isEmpty else {
@@ -278,22 +311,29 @@ public struct Utility {
             }
 
             // attach the first network using the fqdn, and the rest using just the container ID
-            return try networks.enumerated().map { item in
-                let macAddress = try item.element.macAddress.map { try MACAddress($0) }
-                guard item.offset == 0 else {
-                    return AttachmentConfiguration(
-                        network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress)
-                    )
-                }
+            return try networks.map { network in
+                let macAddress = try network.macAddress.map { try MACAddress($0) }
                 return AttachmentConfiguration(
-                    network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress)
+                    network: network.name,
+                    options: AttachmentOptions(
+                        hostname: getHostname(for: network.name),
+                        macAddress: macAddress,
+                        aliases: getAliases(for: network.name)
+                    )
                 )
             }
         }
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        return [
+            AttachmentConfiguration(
+                network: ClientNetwork.defaultNetworkName,
+                options: AttachmentOptions(
+                    hostname: getHostname(for: ClientNetwork.defaultNetworkName),
+                    macAddress: nil,
+                    aliases: getAliases(for: ClientNetwork.defaultNetworkName)
+                )
+            )
+        ]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

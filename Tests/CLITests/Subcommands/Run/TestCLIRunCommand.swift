@@ -494,7 +494,11 @@ class TestCLIRunCommand3: CLITest {
             let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
             let lines = output.split(separator: "\n")
 
-            let expectedEntries = [("127.0.0.1", "localhost"), (ip.description, name)]
+            let expectedEntries = [
+                ("127.0.0.1", "localhost"),
+                ("::1", "localhost"),
+                (ip.description, name),
+            ]
 
             for (i, line) in lines.enumerated() {
                 let words = line.split(separator: " ").map { String($0) }
@@ -503,6 +507,38 @@ class TestCLIRunCommand3: CLITest {
                 #expect(expected.0 == words[0], "expected /etc/hosts entries IP to be \(expected.0), instead got \(words[0])")
                 #expect(expected.1 == words[1], "expected /etc/hosts entries host to be \(expected.1), instead got \(words[1])")
             }
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
+    @Test func testRunCommandAddHost() throws {
+        do {
+            let name = getTestName()
+            let host1 = "myhost1"
+            let ip1 = "1.2.3.4"
+            let host2 = "myhost2"
+            let ip2 = "5.6.7.8"
+            // Test multiple hosts, including same host with multiple IPs and aliases for gateway
+            try doLongRun(name: name, args: [
+                "--add-host", "\(host1):\(ip1)",
+                "--add-host", "\(host1):\(ip2)",
+                "--add-host", "\(host2):host-gateway"
+            ])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
+            #expect(output.contains("\(ip1) \(host1)"), "expected /etc/hosts to contain '\(ip1) \(host1)'")
+            #expect(output.contains("\(ip2) \(host1)"), "expected /etc/hosts to contain '\(ip2) \(host1)'")
+
+            let inspectOutput = try inspectContainer(name)
+            let containerIP = inspectOutput.networks[0].ipv4Address.address
+            // The gateway is usually the .1 address of the container's subnet.
+            let gatewayIP = IPv4Address((containerIP.value & Prefix(length: 24)!.prefixMask32) + 1).description
+            #expect(output.contains("\(gatewayIP) \(host2)"), "expected /etc/hosts to contain '\(gatewayIP) \(host2)'")
         } catch {
             Issue.record("failed to run container \(error)")
             return

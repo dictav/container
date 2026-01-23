@@ -220,13 +220,6 @@ public actor NetworksService {
                 )
             }
 
-            // disable the allocator so nothing else can attach
-            // TODO: remove this from the network helper later, not necesssary now that withContainerList is here
-            let client = NetworkClient(id: id)
-            guard try await client.disableAllocator() else {
-                throw ContainerizationError(.invalidState, message: "cannot delete subnet \(id) because the IP allocator cannot be disabled with active containers")
-            }
-
             // start network deletion, this is the last place we'll want to throw
             do {
                 try self.pluginLoader.deregisterWithLaunchd(plugin: self.networkPlugin, instanceId: id)
@@ -257,15 +250,14 @@ public actor NetworksService {
     }
 
     /// Perform a hostname lookup on all networks.
-    public func lookup(hostname: String) async throws -> Attachment? {
+    public func lookup(hostname: String) async throws -> [Attachment] {
+        var results = [Attachment]()
         for id in networkStates.keys {
             let client = NetworkClient(id: id)
-            guard let allocation = try await client.lookup(hostname: hostname) else {
-                continue
-            }
-            return allocation
+            let allocations = try await client.lookup(hostname: hostname)
+            results.append(contentsOf: allocations)
         }
-        return nil
+        return results
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {

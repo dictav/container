@@ -93,8 +93,10 @@ extension APIServer {
                     // start up host table DNS
                     group.addTask {
                         let hostsResolver = ContainerDNSHandler(networkService: networkService)
+                        let nameservers = HostDNSResolver.getSystemNameservers()
+                        let forwardingResolver = ForwardingResolver(nameservers: nameservers, log: log)
                         let nxDomainResolver = NxDomainResolver()
-                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, nxDomainResolver])
+                        let compositeResolver = CompositeResolver(handlers: [hostsResolver, forwardingResolver, nxDomainResolver])
                         let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
                         let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
                         log.info(
@@ -102,6 +104,7 @@ extension APIServer {
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.dnsPort)",
+                                "upstream": "\(nameservers)",
                             ]
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.dnsPort)
@@ -122,6 +125,28 @@ extension APIServer {
                             metadata: [
                                 "host": "\(Self.listenAddress)",
                                 "port": "\(Self.localhostDNSPort)",
+                            ]
+                        )
+                        try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)
+                    }
+
+                    // start up realhost DNS
+                    group.addTask {
+                        let localhostResolver = LocalhostDNSHandler(log: log)
+                        try localhostResolver.monitorResolvers()
+
+                        let nameservers = HostDNSResolver.getSystemNameservers()
+                        let forwardingResolver = ForwardingResolver(nameservers: nameservers, log: log)
+                        let nxDomainResolver = NxDomainResolver()
+                        let compositeResolver = CompositeResolver(handlers: [localhostResolver, forwardingResolver, nxDomainResolver])
+                        let hostsQueryValidator = StandardQueryValidator(handler: compositeResolver)
+                        let dnsServer: DNSServer = DNSServer(handler: hostsQueryValidator, log: log)
+                        log.info(
+                            "starting DNS resolver for localhost",
+                            metadata: [
+                                "host": "\(Self.listenAddress)",
+                                "port": "\(Self.localhostDNSPort)",
+                                "upstream": "\(nameservers)",
                             ]
                         )
                         try await dnsServer.run(host: Self.listenAddress, port: Self.localhostDNSPort)

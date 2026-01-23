@@ -131,8 +131,8 @@ public actor SandboxService {
             )
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -148,7 +148,11 @@ public actor SandboxService {
             for index in 0..<config.networks.count {
                 let network = config.networks[index]
                 let client = NetworkClient(id: network.network)
-                let (attachment, additionalData) = try await client.allocate(hostname: network.options.hostname, macAddress: network.options.macAddress)
+                let (attachment, additionalData) = try await client.allocate(
+                    hostname: network.options.hostname,
+                    macAddress: network.options.macAddress,
+                    aliases: network.options.aliases
+                )
                 attachments.append(attachment)
 
                 let interface = try self.interfaceStrategy.toInterface(
@@ -192,7 +196,10 @@ public actor SandboxService {
                 czConfig.process.stdin = stdin
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
-                var hostsEntries = [Hosts.Entry.localHostIPV4()]
+                var hostsEntries = [
+                    Hosts.Entry.localHostIPV4(),
+                    Hosts.Entry(ipAddress: "::1", hostnames: ["localhost"]),
+                ]
                 if !interfaces.isEmpty {
                     let primaryIfaceAddr = interfaces[0].ipv4Address
                     hostsEntries.append(
@@ -201,6 +208,22 @@ public actor SandboxService {
                             hostnames: [czConfig.hostname],
                         ))
                 }
+
+                for host in config.extraHosts {
+                    let ip = host.ipAddress
+                    let resolvedIP: String
+                    if ContainerConfiguration.ExtraHost.specialKeywords.contains(ip) {
+                        guard let gatewayIP = defaultNameservers.first, !gatewayIP.isEmpty else {
+                            throw ContainerizationError(.invalidArgument, message: "cannot resolve special IP '\(ip)' without a network gateway")
+                        }
+                        resolvedIP = gatewayIP
+                    } else {
+                        resolvedIP = ip
+                    }
+
+                    hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [host.hostname]))
+                }
+
                 czConfig.hosts = Hosts(entries: hostsEntries)
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
@@ -1019,7 +1042,12 @@ public actor SandboxService {
         let id = container.id
 
         do {
-            try await container.stop()
+            switch self.state {
+            case .running, .booted, .stopping:
+                try await container.stop()
+            default:
+                break
+            }
         } catch {
             self.log.error("failed to stop container during cleanup: \(error)")
         }

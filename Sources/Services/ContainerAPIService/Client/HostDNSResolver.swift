@@ -128,6 +128,28 @@ public struct HostDNSResolver {
         }
     }
 
+    /// Gets the list of system nameservers from /etc/resolv.conf.
+    public static func getSystemNameservers() -> [String] {
+        guard let content = try? String(contentsOfFile: "/etc/resolv.conf", encoding: .utf8) else {
+            return []
+        }
+        var nameservers = [String]()
+        for line in content.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.starts(with: "nameserver ") {
+                let parts = trimmed.components(separatedBy: .whitespaces)
+                if parts.count >= 2 {
+                    let ns = parts[1]
+                    // Skip loopback addresses to prevent recursive DNS loops
+                    if ns != "127.0.0.1" && ns != "::1" && ns != "localhost" {
+                        nameservers.append(ns)
+                    }
+                }
+            }
+        }
+        return nameservers
+    }
+
     private func getDomainFromResolver(url: URL) throws -> String? {
         let text = try String(contentsOf: url, encoding: .utf8)
         for line in text.components(separatedBy: .newlines) {

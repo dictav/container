@@ -268,7 +268,15 @@ extension Application {
             guard case .running(_, let networkStatus) = network else {
                 throw ContainerizationError(.invalidState, message: "default network is not running")
             }
-            config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: id))]
+            let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let hostname: String
+            if let dnsDomain = dnsDomain {
+                hostname = "\(id).\(dnsDomain)."
+            } else {
+                hostname = id
+            }
+
+            config.networks = [AttachmentConfiguration(network: network.id, options: AttachmentOptions(hostname: hostname))]
             let subnet = networkStatus.ipv4Subnet
             let nameserver = IPv4Address(subnet.lower.value + 1).description
             let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers

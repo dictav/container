@@ -121,6 +121,15 @@ public struct Flags {
         @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
 
+        @Option(
+            name: .long,
+            help: .init(
+                "Add a custom host-to-IP mapping (host:ip). The ip may be an address or the special keyword 'host-gateway'.",
+                valueName: "host:ip"
+            )
+        )
+        public var addHost: [String] = []
+
         @Option(name: .long, help: "Write the container ID to the path provided")
         public var cidfile = ""
 
@@ -160,6 +169,9 @@ public struct Flags {
 
         @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
         public var networks: [String] = []
+
+        @Option(name: .long, help: .init("Add a network-scoped alias for the container", valueName: "name"))
+        public var networkAlias: [String] = []
 
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
