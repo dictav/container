@@ -867,6 +867,20 @@ public struct Parser {
         return !label.ranges(of: pattern).isEmpty
     }
 
+    // MARK: Hosts
+
+    public static func addHosts(_ rawHosts: [String]) throws -> [String: String] {
+        var result: [String: String] = [:]
+        for host in rawHosts {
+            let parts = host.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else {
+                throw ContainerizationError(.invalidArgument, message: "invalid add-host format \(host), expected host:ip")
+            }
+            result[String(parts[0])] = String(parts[1])
+        }
+        return result
+    }
+
     // MARK: Miscellaneous
 
     public static func parseBool(string: String) -> Bool? {

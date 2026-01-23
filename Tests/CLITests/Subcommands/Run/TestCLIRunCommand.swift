@@ -509,6 +509,24 @@ class TestCLIRunCommand3: CLITest {
         }
     }
 
+    @Test func testRunCommandAddHost() throws {
+        do {
+            let name = getTestName()
+            let extraHost = "myhost"
+            let extraIP = "1.2.3.4"
+            try doLongRun(name: name, args: ["--add-host", "\(extraHost):\(extraIP)"])
+            defer {
+                try? doStop(name: name)
+            }
+
+            let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
+            #expect(output.contains("\(extraIP) \(extraHost)"), "expected /etc/hosts to contain '\(extraIP) \(extraHost)', instead got \(output)")
+        } catch {
+            Issue.record("failed to run container \(error)")
+            return
+        }
+    }
+
     @Test func testForwardTCP() async throws {
         let retries = 10
         let retryDelaySeconds = Int64(3)

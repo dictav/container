@@ -93,6 +93,12 @@ public struct Flags {
         @Option(name: .shortAndLong, help: "Set arch if image can target multiple architectures")
         public var arch: String = Arch.hostArchitecture().rawValue
 
+        @Option(
+            name: .long,
+            help: .init("Add a custom host-to-IP mapping (host:ip)", valueName: "host:ip")
+        )
+        public var addHost: [String] = []
+
         @Option(name: .long, help: "Write the container ID to the path provided")
         public var cidfile = ""
 

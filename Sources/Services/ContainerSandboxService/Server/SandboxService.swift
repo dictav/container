@@ -131,8 +131,8 @@ public actor SandboxService {
             )
 
             // Dynamically configure the DNS nameserver from a network if no explicit configuration
+            let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
             if let dns = config.dns, dns.nameservers.isEmpty {
-                let defaultNameservers = try await self.getDefaultNameservers(attachmentConfigurations: config.networks)
                 if !defaultNameservers.isEmpty {
                     config.dns = ContainerConfiguration.DNSConfiguration(
                         nameservers: defaultNameservers,
@@ -201,6 +201,14 @@ public actor SandboxService {
                             hostnames: [czConfig.hostname],
                         ))
                 }
+
+                for (hostname, ip) in config.extraHosts {
+                    let resolvedIP = ip == "host-gateway" ? (defaultNameservers.first ?? "") : ip
+                    if !resolvedIP.isEmpty {
+                        hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [hostname]))
+                    }
+                }
+
                 czConfig.hosts = Hosts(entries: hostsEntries)
                 czConfig.bootLog = BootLog.file(path: bundle.bootlog, append: true)
             }
