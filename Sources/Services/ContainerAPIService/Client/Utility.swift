@@ -209,7 +209,11 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            var domain = management.dns.domain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let firstNetworkName = parsedNetworks.first?.name ?? ClientNetwork.defaultNetworkName
+            if let baseDomain = domain, firstNetworkName != ClientNetwork.defaultNetworkName, !firstNetworkName.isEmpty {
+                domain = "\(firstNetworkName).\(baseDomain)"
+            }
             config.dns = .init(
                 nameservers: management.dns.nameservers,
                 domain: domain,

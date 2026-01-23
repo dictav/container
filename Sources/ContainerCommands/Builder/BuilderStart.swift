@@ -273,7 +273,7 @@ extension Application {
             let nameservers = dnsNameservers.isEmpty ? [nameserver] : dnsNameservers
             config.dns = ContainerConfiguration.DNSConfiguration(
                 nameservers: nameservers,
-                domain: dnsDomain,
+                domain: domain,
                 searchDomains: dnsSearchDomains,
                 options: dnsOptions
             )
