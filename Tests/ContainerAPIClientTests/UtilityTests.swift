@@ -14,6 +14,7 @@
 // limitations under the License.
 //===----------------------------------------------------------------------===//
 
+import ContainerPersistence
 import ContainerResource
 import ContainerizationError
 import Foundation
@@ -107,5 +108,73 @@ struct UtilityTests {
         #expect(ports[1].containerPort == 9000)
         #expect(ports[1].proto == .udp)
         #expect(ports[1].count == 100)
+    }
+
+    @Test("Hierarchical DNS registration")
+    func testGetAttachmentConfigurationsHierarchical() throws {
+        // Mock default domain
+        let originalDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
+        DefaultsStore.set(value: "container", key: .defaultDNSDomain)
+        defer {
+            if let original = originalDomain {
+                DefaultsStore.set(value: original, key: .defaultDNSDomain)
+            } else {
+                DefaultsStore.unset(key: .defaultDNSDomain)
+            }
+        }
+
+        // Test default network (legacy behavior)
+        let defaultNet = try Utility.getAttachmentConfigurations(
+            containerId: "con1",
+            networks: [Parser.ParsedNetwork(name: "default", macAddress: nil)]
+        )
+        #expect(defaultNet.count == 1)
+        #expect(defaultNet[0].network == "default")
+        #expect(defaultNet[0].options.hostname == "con1.container.")
+
+        // Test custom network (hierarchical behavior)
+        let customNet = try Utility.getAttachmentConfigurations(
+            containerId: "con1",
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+        )
+        #expect(customNet.count == 1)
+        #expect(customNet[0].network == "mynet")
+        #expect(customNet[0].options.hostname == "con1.mynet.container.")
+
+        // Test multiple networks
+        let multiNet = try Utility.getAttachmentConfigurations(
+            containerId: "con1",
+            networks: [
+                Parser.ParsedNetwork(name: "default", macAddress: nil),
+                Parser.ParsedNetwork(name: "mynet", macAddress: nil),
+            ]
+        )
+        #expect(multiNet.count == 2)
+        #expect(multiNet[0].options.hostname == "con1.container.")
+        #expect(multiNet[1].options.hostname == "con1.mynet.container.")
+
+        // Test fully-qualified container ID (preserved)
+        let fqdnNet = try Utility.getAttachmentConfigurations(
+            containerId: "con1.custom.domain",
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+        )
+        #expect(fqdnNet[0].options.hostname == "con1.custom.domain.")
+    }
+
+    @Test("Hierarchical DNS registration without base domain")
+    func testGetAttachmentConfigurationsNoBaseDomain() throws {
+        let originalDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
+        DefaultsStore.unset(key: .defaultDNSDomain)
+        defer {
+            if let original = originalDomain {
+                DefaultsStore.set(value: original, key: .defaultDNSDomain)
+            }
+        }
+
+        let result = try Utility.getAttachmentConfigurations(
+            containerId: "con1",
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+        )
+        #expect(result[0].options.hostname == "con1")
     }
 }
