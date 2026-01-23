@@ -209,7 +209,12 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            let domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            var domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let firstNetworkName = parsedNetworks.first?.name ?? ClientNetwork.defaultNetworkName
+            if let baseDomain = domain, firstNetworkName != ClientNetwork.defaultNetworkName, !firstNetworkName.isEmpty {
+                domain = "\(firstNetworkName).\(baseDomain)"
+            }
+
             config.dns = .init(
                 nameservers: management.dnsNameservers,
                 domain: domain,
@@ -252,18 +257,20 @@ public struct Utility {
             }
         }
 
-        // make an FQDN for the first interface
-        let fqdn: String?
-        if !containerId.contains(".") {
-            // add default domain if it exists, and container ID is unqualified
-            if let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain) {
-                fqdn = "\(containerId).\(dnsDomain)."
+        let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
+
+        func getHostname(for networkName: String) -> String {
+            if let dnsDomain = dnsDomain, !containerId.contains(".") {
+                if networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty {
+                    return "\(containerId).\(dnsDomain)."
+                } else {
+                    return "\(containerId).\(networkName).\(dnsDomain)."
+                }
+            } else if containerId.contains(".") {
+                return "\(containerId)."
             } else {
-                fqdn = nil
+                return containerId
             }
-        } else {
-            // use container ID directly if fully qualified
-            fqdn = "\(containerId)."
         }
 
         guard networks.isEmpty else {
@@ -277,23 +284,16 @@ public struct Utility {
                 }
             }
 
-            // attach the first network using the fqdn, and the rest using just the container ID
-            return try networks.enumerated().map { item in
-                let macAddress = try item.element.macAddress.map { try MACAddress($0) }
-                guard item.offset == 0 else {
-                    return AttachmentConfiguration(
-                        network: item.element.name,
-                        options: AttachmentOptions(hostname: containerId, macAddress: macAddress)
-                    )
-                }
+            return try networks.map { network in
+                let macAddress = try network.macAddress.map { try MACAddress($0) }
                 return AttachmentConfiguration(
-                    network: item.element.name,
-                    options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: macAddress)
+                    network: network.name,
+                    options: AttachmentOptions(hostname: getHostname(for: network.name), macAddress: macAddress)
                 )
             }
         }
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: fqdn ?? containerId, macAddress: nil))]
+        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: getHostname(for: ClientNetwork.defaultNetworkName), macAddress: nil))]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {
