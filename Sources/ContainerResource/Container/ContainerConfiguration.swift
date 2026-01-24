@@ -55,6 +55,7 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var extraHosts: [ExtraHost] = []
 
     public struct ExtraHost: Sendable, Codable {
+        public static let specialKeywords: Set<String> = ["host-gateway", "_gateway", "host.apple.container"]
         public let hostname: String
         public let ipAddress: String
         public init(hostname: String, ipAddress: String) {

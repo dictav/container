@@ -848,6 +848,60 @@ struct ParserTest {
 
     // MARK: - Relative Path Passthrough Tests
 
+    // MARK: - Add Host Tests
+
+    @Test
+    func testAddHostsValid() throws {
+        let result = try Parser.addHosts(["myhost:1.2.3.4", "other:2001:db8::1", "gateway:host-gateway"])
+        #expect(result.count == 3)
+        #expect(result[0].hostname == "myhost")
+        #expect(result[0].ipAddress == "1.2.3.4")
+        #expect(result[1].hostname == "other")
+        #expect(result[1].ipAddress == "2001:db8::1")
+        #expect(result[2].hostname == "gateway")
+        #expect(result[2].ipAddress == "host-gateway")
+    }
+
+    @Test
+    func testAddHostsInvalidFormat() throws {
+        #expect {
+            _ = try Parser.addHosts(["no-colon"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else { return false }
+            return error.description.contains("invalid add-host format")
+        }
+    }
+
+    @Test
+    func testAddHostsInvalidHostname() throws {
+        #expect {
+            _ = try Parser.addHosts(["invalid_hostname!:1.2.3.4"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else { return false }
+            return error.description.contains("invalid hostname")
+        }
+    }
+
+    @Test
+    func testAddHostsInvalidIP() throws {
+        #expect {
+            _ = try Parser.addHosts(["myhost:not-an-ip"])
+        } throws: { error in
+            guard let error = error as? ContainerizationError else { return false }
+            return error.description.contains("invalid IP address")
+        }
+    }
+
+    @Test
+    func testAddHostsSpecialKeywords() throws {
+        let keywords = ["host-gateway", "_gateway", "host.apple.container"]
+        for keyword in keywords {
+            let result = try Parser.addHosts(["myhost:\(keyword)"])
+            #expect(result.count == 1)
+            #expect(result[0].ipAddress == keyword)
+        }
+    }
+
     @Test
     func testProcessEntrypointRelativePathPassthrough() throws {
         let processFlags = try Flags.Process.parse(["--cwd", "/bin"])

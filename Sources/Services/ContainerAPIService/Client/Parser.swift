@@ -870,8 +870,7 @@ public struct Parser {
     // MARK: Hosts
 
     public static func addHosts(_ rawHosts: [String]) throws -> [ContainerConfiguration.ExtraHost] {
-        var result: [ContainerConfiguration.ExtraHost] = []
-        for host in rawHosts {
+        return try rawHosts.map { host in
             let parts = host.split(separator: ":", maxSplits: 1)
             guard parts.count == 2 else {
                 throw ContainerizationError(.invalidArgument, message: "invalid add-host format \(host), expected host:ip")
@@ -879,16 +878,19 @@ public struct Parser {
             let hostname = String(parts[0])
             let ip = String(parts[1])
 
+            guard Self.isValidDomainName(hostname) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid hostname '\(hostname)' in add-host")
+            }
+
             // Validate IP address (unless it's a special keyword)
-            if ip != "host-gateway" && ip != "_gateway" && ip != "host.apple.container" {
-                if IPAddress(ip) == nil {
+            if !ContainerConfiguration.ExtraHost.specialKeywords.contains(ip) {
+                if (try? IPAddress(ip)) == nil {
                     throw ContainerizationError(.invalidArgument, message: "invalid IP address '\(ip)' in add-host")
                 }
             }
 
-            result.append(ContainerConfiguration.ExtraHost(hostname: hostname, ipAddress: ip))
+            return ContainerConfiguration.ExtraHost(hostname: hostname, ipAddress: ip)
         }
-        return result
     }
 
     // MARK: Miscellaneous

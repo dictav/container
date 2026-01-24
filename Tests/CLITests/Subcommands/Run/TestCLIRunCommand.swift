@@ -494,7 +494,11 @@ class TestCLIRunCommand3: CLITest {
             let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
             let lines = output.split(separator: "\n")
 
-            let expectedEntries = [("127.0.0.1", "localhost"), (ip.description, name)]
+            let expectedEntries = [
+                ("127.0.0.1", "localhost"),
+                ("::1", "localhost"),
+                (ip.description, name),
+            ]
 
             for (i, line) in lines.enumerated() {
                 let words = line.split(separator: " ").map { String($0) }
@@ -531,11 +535,10 @@ class TestCLIRunCommand3: CLITest {
             #expect(output.contains("\(ip2) \(host1)"), "expected /etc/hosts to contain '\(ip2) \(host1)'")
 
             let inspectOutput = try inspectContainer(name)
-            let gateway = inspectOutput.networks[0].ipv4Address.address.description // This is a bit of a guess on how gateway is stored in inspect
-            // Wait, inspectOutput.networks[0].ipv4Address.address is the container IP.
-            // The gateway is usually .1 of the subnet.
-
-            #expect(output.contains("\(host2)"), "expected /etc/hosts to contain '\(host2)'")
+            let containerIP = inspectOutput.networks[0].ipv4Address.address
+            // The gateway is usually the .1 address of the container's subnet.
+            let gatewayIP = IPv4Address((containerIP.value & Prefix(length: 24)!.prefixMask32) + 1).description
+            #expect(output.contains("\(gatewayIP) \(host2)"), "expected /etc/hosts to contain '\(gatewayIP) \(host2)'")
         } catch {
             Issue.record("failed to run container \(error)")
             return

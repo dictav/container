@@ -192,7 +192,10 @@ public actor SandboxService {
                 czConfig.process.stdin = stdin
                 // NOTE: We can support a user providing new entries eventually, but for now craft
                 // a default /etc/hosts.
-                var hostsEntries = [Hosts.Entry.localHostIPV4()]
+                var hostsEntries = [
+                    Hosts.Entry.localHostIPV4(),
+                    Hosts.Entry(ipAddress: "::1", hostnames: ["localhost"]),
+                ]
                 if !interfaces.isEmpty {
                     let primaryIfaceAddr = interfaces[0].ipv4Address
                     hostsEntries.append(
@@ -205,15 +208,16 @@ public actor SandboxService {
                 for host in config.extraHosts {
                     let ip = host.ipAddress
                     let resolvedIP: String
-                    if ip == "host-gateway" || ip == "_gateway" || ip == "host.apple.container" {
-                        resolvedIP = defaultNameservers.first ?? ""
+                    if ContainerConfiguration.ExtraHost.specialKeywords.contains(ip) {
+                        guard let gatewayIP = defaultNameservers.first, !gatewayIP.isEmpty else {
+                            throw ContainerizationError(.invalidArgument, message: "cannot resolve special IP '\(ip)' without a network gateway")
+                        }
+                        resolvedIP = gatewayIP
                     } else {
                         resolvedIP = ip
                     }
 
-                    if !resolvedIP.isEmpty {
-                        hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [host.hostname]))
-                    }
+                    hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [host.hostname]))
                 }
 
                 czConfig.hosts = Hosts(entries: hostsEntries)
