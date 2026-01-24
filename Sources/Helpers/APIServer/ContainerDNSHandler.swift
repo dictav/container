@@ -30,13 +30,13 @@ struct ContainerDNSHandler: DNSHandler {
 
     public func answer(query: Message) async throws -> Message? {
         let question = query.questions[0]
-        let record: ResourceRecord?
+        let records: [ResourceRecord]
         switch question.type {
         case ResourceRecordType.host:
-            record = try await answerHost(question: question)
+            records = try await answerHost(question: question)
         case ResourceRecordType.host6:
             let result = try await answerHost6(question: question)
-            if result.record == nil && result.hostnameExists {
+            if result.records.isEmpty && result.hostnameExists {
                 // Return NODATA (noError with empty answers) when hostname exists but has no IPv6.
                 // This is required because musl libc has issues when A record exists but AAAA returns NXDOMAIN.
                 // musl treats NXDOMAIN on AAAA as "domain doesn't exist" and fails DNS resolution entirely.
@@ -49,7 +49,7 @@ struct ContainerDNSHandler: DNSHandler {
                     answers: []
                 )
             }
-            record = result.record
+            records = result.records
         case ResourceRecordType.nameServer,
             ResourceRecordType.alias,
             ResourceRecordType.startOfAuthority,
@@ -77,7 +77,7 @@ struct ContainerDNSHandler: DNSHandler {
             )
         }
 
-        guard let record else {
+        if records.isEmpty {
             return nil
         }
 
@@ -86,34 +86,46 @@ struct ContainerDNSHandler: DNSHandler {
             type: .response,
             returnCode: .noError,
             questions: query.questions,
-            answers: [record]
+            answers: records
         )
     }
 
-    private func answerHost(question: Question) async throws -> ResourceRecord? {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
-            return nil
-        }
-        let ipv4 = ipAllocation.ipv4Address.address.description
-        guard let ip = IPv4(ipv4) else {
-            throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
+    private func answerHost(question: Question) async throws -> [ResourceRecord] {
+        let ipAllocations = try await networkService.lookup(hostname: question.name)
+        if ipAllocations.isEmpty {
+            return []
         }
 
-        return HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip)
+        var records: [ResourceRecord] = []
+        for ipAllocation in ipAllocations {
+            let ipv4 = ipAllocation.ipv4Address.address.description
+            guard let ip = IPv4(ipv4) else {
+                throw DNSResolverError.serverError("failed to parse IP address: \(ipv4)")
+            }
+            records.append(HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip))
+        }
+
+        return records.shuffled()
     }
 
-    private func answerHost6(question: Question) async throws -> (record: ResourceRecord?, hostnameExists: Bool) {
-        guard let ipAllocation = try await networkService.lookup(hostname: question.name) else {
-            return (nil, false)
-        }
-        guard let ipv6Address = ipAllocation.ipv6Address else {
-            return (nil, true)
-        }
-        let ipv6 = ipv6Address.address.description
-        guard let ip = IPv6(ipv6) else {
-            throw DNSResolverError.serverError("failed to parse IPv6 address: \(ipv6)")
+    private func answerHost6(question: Question) async throws -> (records: [ResourceRecord], hostnameExists: Bool) {
+        let ipAllocations = try await networkService.lookup(hostname: question.name)
+        if ipAllocations.isEmpty {
+            return ([], false)
         }
 
-        return (HostRecord<IPv6>(name: question.name, ttl: ttl, ip: ip), true)
+        var records: [ResourceRecord] = []
+        for ipAllocation in ipAllocations {
+            guard let ipv6Address = ipAllocation.ipv6Address else {
+                continue
+            }
+            let ipv6 = ipv6Address.address.description
+            guard let ip = IPv6(ipv6) else {
+                throw DNSResolverError.serverError("failed to parse IPv6 address: \(ipv6)")
+            }
+            records.append(HostRecord<IPv6>(name: question.name, ttl: ttl, ip: ip))
+        }
+
+        return (records.shuffled(), true)
     }
 }

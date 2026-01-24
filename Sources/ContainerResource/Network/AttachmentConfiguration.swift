@@ -38,8 +38,12 @@ public struct AttachmentOptions: Codable, Sendable {
     /// The MAC address associated with the attachment (optional).
     public let macAddress: MACAddress?
 
-    public init(hostname: String, macAddress: MACAddress? = nil) {
+    /// The aliases associated with the attachment.
+    public let aliases: [String]
+
+    public init(hostname: String, macAddress: MACAddress? = nil, aliases: [String] = []) {
         self.hostname = hostname
         self.macAddress = macAddress
+        self.aliases = aliases
     }
 }

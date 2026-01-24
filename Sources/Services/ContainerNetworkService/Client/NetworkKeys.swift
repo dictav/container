@@ -18,6 +18,8 @@ public enum NetworkKeys: String {
     case additionalData
     case allocatorDisabled
     case attachment
+    case attachments
+    case aliases
     case hostname
     case macAddress
     case network

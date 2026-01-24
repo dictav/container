@@ -257,15 +257,14 @@ public actor NetworksService {
     }
 
     /// Perform a hostname lookup on all networks.
-    public func lookup(hostname: String) async throws -> Attachment? {
+    public func lookup(hostname: String) async throws -> [Attachment] {
+        var results = [Attachment]()
         for id in networkStates.keys {
             let client = NetworkClient(id: id)
-            guard let allocation = try await client.lookup(hostname: hostname) else {
-                continue
-            }
-            return allocation
+            let allocations = try await client.lookup(hostname: hostname)
+            results.append(contentsOf: allocations)
         }
-        return nil
+        return results
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
