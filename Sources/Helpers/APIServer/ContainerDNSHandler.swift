@@ -105,7 +105,7 @@ struct ContainerDNSHandler: DNSHandler {
             records.append(HostRecord<IPv4>(name: question.name, ttl: ttl, ip: ip))
         }
 
-        return records
+        return records.shuffled()
     }
 
     private func answerHost6(question: Question) async throws -> (records: [ResourceRecord], hostnameExists: Bool) {
@@ -126,6 +126,6 @@ struct ContainerDNSHandler: DNSHandler {
             records.append(HostRecord<IPv6>(name: question.name, ttl: ttl, ip: ip))
         }
 
-        return (records, true)
+        return (records.shuffled(), true)
     }
 }
