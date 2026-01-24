@@ -96,7 +96,7 @@ struct ContainerDNSHandler: DNSHandler {
             return []
         }
 
-        var records = [ResourceRecord]()
+        var records: [ResourceRecord] = []
         for ipAllocation in ipAllocations {
             let ipv4 = ipAllocation.ipv4Address.address.description
             guard let ip = IPv4(ipv4) else {
@@ -114,7 +114,7 @@ struct ContainerDNSHandler: DNSHandler {
             return ([], false)
         }
 
-        var records = [ResourceRecord]()
+        var records: [ResourceRecord] = []
         for ipAllocation in ipAllocations {
             guard let ipv6Address = ipAllocation.ipv6Address else {
                 continue
