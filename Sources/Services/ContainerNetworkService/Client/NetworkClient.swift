@@ -132,7 +132,7 @@ extension XPCMessage {
         guard let data else {
             throw ContainerizationError(.invalidArgument, message: "no network attachments snapshot data in message")
         }
-        return try JSONDecoder().decode([Attachment.self], from: data)
+        return try JSONDecoder().decode([Attachment].self, from: data)
     }
 
     public func hostname() throws -> String {
