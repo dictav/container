@@ -30,13 +30,13 @@ struct AttachmentAllocatorTest {
         #expect(address < 110)
     }
 
-    @Test func testAllocateSameHostnameTwice() async throws {
+    @Test func testAllocateSameHostnameTwiceFails() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
-        let address1 = try await allocator.allocate(hostname: "test-host")
-        let address2 = try await allocator.allocate(hostname: "test-host")
-
-        #expect(address1 == address2)
+        _ = try await allocator.allocate(hostname: "test-host")
+        await #expect(throws: Error.self) {
+            try await allocator.allocate(hostname: "test-host")
+        }
     }
 
     @Test func testAllocateMultipleHostnames() async throws {

@@ -20,6 +20,7 @@ import ContainerizationExtras
 actor AttachmentAllocator {
     private let allocator: any AddressAllocator<UInt32>
     private var hostnames: [String: Set<UInt32>] = [:]
+    private var primaryHostnames: [String: UInt32] = [:]
     private var ipToNames: [UInt32: Set<String>] = [:]
 
     init(lower: UInt32, size: Int) throws {
@@ -31,15 +32,16 @@ actor AttachmentAllocator {
 
     /// Allocate a network address for a host. The address will be registered for the hostname and all provided aliases.
     func allocate(hostname: String, aliases: [String] = []) async throws -> UInt32 {
-        let index: UInt32
-        // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
-        if let existing = hostnames[hostname]?.first {
-            index = existing
-        } else {
-            index = try allocator.allocate()
-            hostnames[hostname, default: []].insert(index)
-            ipToNames[index, default: []].insert(hostname)
+        // To prevent hijacking, ensure the hostname is not already in use by another IP.
+        if primaryHostnames[hostname] != nil {
+            throw ContainerizationError(.invalidArgument, message: "hostname '\(hostname)' already in use")
         }
+
+        let index = try allocator.allocate()
+        primaryHostnames[hostname] = index
+
+        hostnames[hostname, default: []].insert(index)
+        ipToNames[index, default: []].insert(hostname)
 
         for alias in aliases {
             hostnames[alias, default: []].insert(index)
@@ -49,32 +51,26 @@ actor AttachmentAllocator {
         return index
     }
 
-    /// Free an allocated network address by hostname.
+    /// Free an allocated network address by primary hostname.
     @discardableResult
     func deallocate(hostname: String) async throws -> UInt32? {
-        // Retrieve all indices associated with this hostname.
-        guard let indices = hostnames[hostname], !indices.isEmpty else {
+        // Retrieve the index associated with this primary hostname.
+        guard let index = primaryHostnames.removeValue(forKey: hostname) else {
             return nil
         }
 
-        // Preserve one representative index to return for compatibility.
-        let representative = indices.first
-
-        // Deallocate and clean up all indices associated with this hostname.
-        for index in indices {
-            if let names = ipToNames.removeValue(forKey: index) {
-                for name in names {
-                    hostnames[name]?.remove(index)
-                    if hostnames[name]?.isEmpty == true {
-                        hostnames.removeValue(forKey: name)
-                    }
+        // Deallocate and clean up all names associated with this index.
+        if let names = ipToNames.removeValue(forKey: index) {
+            for name in names {
+                hostnames[name]?.remove(index)
+                if hostnames[name]?.isEmpty == true {
+                    hostnames.removeValue(forKey: name)
                 }
             }
-
-            try allocator.release(index)
         }
 
-        return representative
+        try allocator.release(index)
+        return index
     }
 
     /// If no addresses are allocated, prevent future allocations and return true.
