@@ -57,15 +57,15 @@ struct AttachmentAllocatorTest {
         let allocatedAddress = try await allocator.allocate(hostname: "test-host")
         let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
 
-        #expect(lookedUpAddress == allocatedAddress)
+        #expect(lookedUpAddress == [allocatedAddress])
     }
 
     @Test func testLookupNonExistentHostname() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
-        let address = try await allocator.lookup(hostname: "non-existent")
+        let addresses = try await allocator.lookup(hostname: "non-existent")
 
-        #expect(address == nil)
+        #expect(addresses.isEmpty)
     }
 
     @Test func testDeallocateAllocatedHostname() async throws {
@@ -76,9 +76,9 @@ struct AttachmentAllocatorTest {
 
         #expect(deallocatedAddress == allocatedAddress)
 
-        // After deallocation, lookup should return nil
+        // After deallocation, lookup should return empty array
         let lookedUpAddress = try await allocator.lookup(hostname: "test-host")
-        #expect(lookedUpAddress == nil)
+        #expect(lookedUpAddress.isEmpty)
     }
 
     @Test func testDeallocateNonExistentHostname() async throws {
@@ -140,9 +140,9 @@ struct AttachmentAllocatorTest {
         let finalAddress3 = try await allocator.lookup(hostname: "host3")
         let finalAddress4 = try await allocator.lookup(hostname: "host4")
 
-        #expect(finalAddress1 == address1)
-        #expect(finalAddress3 == address3)
-        #expect(finalAddress4 == newAddress)
+        #expect(finalAddress1 == [address1])
+        #expect(finalAddress3 == [address3])
+        #expect(finalAddress4 == [newAddress])
     }
 
     @Test func testDisableAllocatorWhenEmpty() async throws {
@@ -203,5 +203,59 @@ struct AttachmentAllocatorTest {
         // Second deallocation should return nil since it's already deallocated
         let secondDeallocate = try await allocator.deallocate(hostname: "test-host")
         #expect(secondDeallocate == nil)
+    }
+
+    @Test func testAllocateWithAliases() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address = try await allocator.allocate(hostname: "host1", aliases: ["alias1", "alias2"])
+
+        let lookupHostname = try await allocator.lookup(hostname: "host1")
+        #expect(lookupHostname == [address])
+
+        let lookupAlias1 = try await allocator.lookup(hostname: "alias1")
+        #expect(lookupAlias1 == [address])
+
+        let lookupAlias2 = try await allocator.lookup(hostname: "alias2")
+        #expect(lookupAlias2 == [address])
+    }
+
+    @Test func testMultipleIPsForAlias() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address1 = try await allocator.allocate(hostname: "host1", aliases: ["web"])
+        let address2 = try await allocator.allocate(hostname: "host2", aliases: ["web"])
+
+        #expect(address1 != address2)
+
+        let lookupWeb = try await allocator.lookup(hostname: "web")
+        #expect(lookupWeb.count == 2)
+        #expect(lookupWeb.contains(address1))
+        #expect(lookupWeb.contains(address2))
+    }
+
+    @Test func testDeallocateWithAliases() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address = try await allocator.allocate(hostname: "host1", aliases: ["web"])
+        try await allocator.deallocate(hostname: "host1")
+
+        let lookupHost = try await allocator.lookup(hostname: "host1")
+        #expect(lookupHost.isEmpty)
+
+        let lookupWeb = try await allocator.lookup(hostname: "web")
+        #expect(lookupWeb.isEmpty)
+    }
+
+    @Test func testDeallocateOneOfMultipleIPsForAlias() async throws {
+        let allocator = try AttachmentAllocator(lower: 100, size: 10)
+
+        let address1 = try await allocator.allocate(hostname: "host1", aliases: ["web"])
+        let address2 = try await allocator.allocate(hostname: "host2", aliases: ["web"])
+
+        try await allocator.deallocate(hostname: "host1")
+
+        let lookupWeb = try await allocator.lookup(hostname: "web")
+        #expect(lookupWeb == [address2])
     }
 }

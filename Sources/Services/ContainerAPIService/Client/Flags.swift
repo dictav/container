@@ -163,6 +163,9 @@ public struct Flags {
         @Option(name: [.customLong("network")], help: "Attach the container to a network (format: <name>[,mac=XX:XX:XX:XX:XX:XX])")
         public var networks: [String] = []
 
+        @Option(name: .long, help: .init("Add a network-scoped alias for the container", valueName: "name"))
+        public var networkAlias: [String] = []
+
         @Flag(name: [.customLong("no-dns")], help: "Do not configure DNS in the container")
         public var dnsDisabled = false
 

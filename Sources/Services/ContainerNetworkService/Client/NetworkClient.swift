@@ -50,10 +50,14 @@ extension NetworkClient {
 
     public func allocate(
         hostname: String,
-        macAddress: MACAddress? = nil
+        macAddress: MACAddress? = nil,
+        aliases: [String] = []
     ) async throws -> (attachment: Attachment, additionalData: XPCMessage?) {
         let request = XPCMessage(route: NetworkRoutes.allocate.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
+        if !aliases.isEmpty {
+            request.set(key: NetworkKeys.aliases.rawValue, value: aliases)
+        }
         if let macAddress = macAddress {
             request.set(key: NetworkKeys.macAddress.rawValue, value: macAddress.description)
         }
@@ -74,16 +78,19 @@ extension NetworkClient {
         try await client.send(request)
     }
 
-    public func lookup(hostname: String) async throws -> Attachment? {
+    public func lookup(hostname: String) async throws -> [Attachment] {
         let request = XPCMessage(route: NetworkRoutes.lookup.rawValue)
         request.set(key: NetworkKeys.hostname.rawValue, value: hostname)
 
         let client = createClient()
 
         let response = try await client.send(request)
-        return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
-            try JSONDecoder().decode(Attachment.self, from: $0)
+        if let attachments = try? response.attachments() {
+            return attachments
         }
+        return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
+            try [JSONDecoder().decode(Attachment.self, from: $0)]
+        } ?? []
     }
 
     public func disableAllocator() async throws -> Bool {
@@ -118,6 +125,14 @@ extension XPCMessage {
             throw ContainerizationError(.invalidArgument, message: "no network attachment snapshot data in message")
         }
         return try JSONDecoder().decode(Attachment.self, from: data)
+    }
+
+    public func attachments() throws -> [Attachment] {
+        let data = self.dataNoCopy(key: NetworkKeys.attachments.rawValue)
+        guard let data else {
+            throw ContainerizationError(.invalidArgument, message: "no network attachments snapshot data in message")
+        }
+        return try JSONDecoder().decode([Attachment.self], from: data)
     }
 
     public func hostname() throws -> String {

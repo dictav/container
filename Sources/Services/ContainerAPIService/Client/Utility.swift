@@ -197,7 +197,7 @@ public struct Utility {
             }
             config.networks = []
         } else {
-            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks)
+            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks, aliases: management.networkAlias)
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
@@ -251,7 +251,7 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork], aliases: [String]) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
             if let mac = network.macAddress {
@@ -275,6 +275,22 @@ public struct Utility {
             }
         }
 
+        func getAliases(for networkName: String) -> [String] {
+            return aliases.map { alias in
+                if let dnsDomain = dnsDomain, !alias.contains(".") {
+                    if networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty {
+                        return "\(alias).\(dnsDomain)."
+                    } else {
+                        return "\(alias).\(networkName).\(dnsDomain)."
+                    }
+                } else if alias.contains(".") {
+                    return "\(alias)."
+                } else {
+                    return alias
+                }
+            }
+        }
+
         guard networks.isEmpty else {
             // Check if this is only the default network with properties (e.g., MAC address)
             let isOnlyDefaultNetwork = networks.count == 1 && networks[0].name == ClientNetwork.defaultNetworkName
@@ -290,12 +306,25 @@ public struct Utility {
                 let macAddress = try network.macAddress.map { try MACAddress($0) }
                 return AttachmentConfiguration(
                     network: network.name,
-                    options: AttachmentOptions(hostname: getHostname(for: network.name), macAddress: macAddress)
+                    options: AttachmentOptions(
+                        hostname: getHostname(for: network.name),
+                        macAddress: macAddress,
+                        aliases: getAliases(for: network.name)
+                    )
                 )
             }
         }
         // if no networks specified, attach to the default network
-        return [AttachmentConfiguration(network: ClientNetwork.defaultNetworkName, options: AttachmentOptions(hostname: getHostname(for: ClientNetwork.defaultNetworkName), macAddress: nil))]
+        return [
+            AttachmentConfiguration(
+                network: ClientNetwork.defaultNetworkName,
+                options: AttachmentOptions(
+                    hostname: getHostname(for: ClientNetwork.defaultNetworkName),
+                    macAddress: nil,
+                    aliases: getAliases(for: ClientNetwork.defaultNetworkName)
+                )
+            )
+        ]
     }
 
     private static func getKernel(management: Flags.Management) async throws -> Kernel {

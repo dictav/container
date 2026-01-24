@@ -72,11 +72,13 @@ public actor NetworkService: Sendable {
             }
         }
 
+        let aliases = message.stringArray(key: NetworkKeys.aliases.rawValue)
+
         let macAddress =
             try message.string(key: NetworkKeys.macAddress.rawValue)
             .map { try MACAddress($0) }
             ?? MACAddress((UInt64.random(in: 0...UInt64.max) & 0x0cff_ffff_ffff) | 0xf200_0000_0000)
-        let index = try await allocator.allocate(hostname: hostname)
+        let index = try await allocator.allocate(hostname: hostname, aliases: aliases)
         let ipv6Address = try status.ipv6Subnet
             .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
         let ip = IPv4Address(index)
@@ -126,34 +128,40 @@ public actor NetworkService: Sendable {
         }
 
         let hostname = try message.hostname()
-        let index = try await allocator.lookup(hostname: hostname)
+        let indices = try await allocator.lookup(hostname: hostname)
         let reply = message.reply()
-        guard let index else {
+        if indices.isEmpty {
             return reply
         }
-        guard let macAddress = macAddresses[index] else {
-            return reply
+
+        var attachments = [Attachment]()
+        for index in indices {
+            guard let macAddress = macAddresses[index] else {
+                continue
+            }
+            let address = IPv4Address(index)
+            let subnet = status.ipv4Subnet
+            let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)
+            let ipv6Address = try status.ipv6Subnet
+                .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
+            let attachment = Attachment(
+                network: state.id,
+                hostname: hostname,
+                ipv4Address: ipv4Address,
+                ipv4Gateway: status.ipv4Gateway,
+                ipv6Address: ipv6Address,
+                macAddress: macAddress
+            )
+            attachments.append(attachment)
+            log?.debug(
+                "lookup attachment",
+                metadata: [
+                    "hostname": "\(hostname)",
+                    "address": "\(address)",
+                ])
         }
-        let address = IPv4Address(index)
-        let subnet = status.ipv4Subnet
-        let ipv4Address = try CIDRv4(address, prefix: subnet.prefix)
-        let ipv6Address = try status.ipv6Subnet
-            .map { try CIDRv6(macAddress.ipv6Address(network: $0.lower), prefix: $0.prefix) }
-        let attachment = Attachment(
-            network: state.id,
-            hostname: hostname,
-            ipv4Address: ipv4Address,
-            ipv4Gateway: status.ipv4Gateway,
-            ipv6Address: ipv6Address,
-            macAddress: macAddress
-        )
-        log?.debug(
-            "lookup attachment",
-            metadata: [
-                "hostname": "\(hostname)",
-                "address": "\(address)",
-            ])
-        try reply.setAttachment(attachment)
+
+        try reply.setAttachments(attachments)
         return reply
     }
 
@@ -179,6 +187,11 @@ extension XPCMessage {
     fileprivate func setAttachment(_ attachment: Attachment) throws {
         let data = try JSONEncoder().encode(attachment)
         self.set(key: NetworkKeys.attachment.rawValue, value: data)
+    }
+
+    fileprivate func setAttachments(_ attachments: [Attachment]) throws {
+        let data = try JSONEncoder().encode(attachments)
+        self.set(key: NetworkKeys.attachments.rawValue, value: data)
     }
 
     fileprivate func setState(_ state: NetworkState) throws {

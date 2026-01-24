@@ -19,7 +19,8 @@ import ContainerizationExtras
 
 actor AttachmentAllocator {
     private let allocator: any AddressAllocator<UInt32>
-    private var hostnames: [String: UInt32] = [:]
+    private var hostnames: [String: Set<UInt32>] = [:]
+    private var ipToNames: [UInt32: Set<String>] = [:]
 
     init(lower: UInt32, size: Int) throws {
         allocator = try UInt32.rotatingAllocator(
@@ -29,14 +30,21 @@ actor AttachmentAllocator {
     }
 
     /// Allocate a network address for a host.
-    func allocate(hostname: String) async throws -> UInt32 {
+    func allocate(hostname: String, aliases: [String] = []) async throws -> UInt32 {
+        let index: UInt32
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
-        if let index = hostnames[hostname] {
-            return index
+        if let existing = hostnames[hostname]?.first {
+            index = existing
+        } else {
+            index = try allocator.allocate()
+            hostnames[hostname, default: []].insert(index)
+            ipToNames[index, default: []].insert(hostname)
         }
 
-        let index = try allocator.allocate()
-        hostnames[hostname] = index
+        for alias in aliases {
+            hostnames[alias, default: []].insert(index)
+            ipToNames[index, default: []].insert(alias)
+        }
 
         return index
     }
@@ -44,8 +52,17 @@ actor AttachmentAllocator {
     /// Free an allocated network address by hostname.
     @discardableResult
     func deallocate(hostname: String) async throws -> UInt32? {
-        guard let index = hostnames.removeValue(forKey: hostname) else {
+        guard let index = hostnames[hostname]?.first else {
             return nil
+        }
+
+        if let names = ipToNames.removeValue(forKey: index) {
+            for name in names {
+                hostnames[name]?.remove(index)
+                if hostnames[name]?.isEmpty == true {
+                    hostnames.removeValue(forKey: name)
+                }
+            }
         }
 
         try allocator.release(index)
@@ -58,7 +75,10 @@ actor AttachmentAllocator {
     }
 
     /// Retrieve the allocator index for a hostname.
-    func lookup(hostname: String) async throws -> UInt32? {
-        hostnames[hostname]
+    func lookup(hostname: String) async throws -> [UInt32] {
+        if let indices = hostnames[hostname] {
+            return Array(indices)
+        }
+        return []
     }
 }
