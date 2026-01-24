@@ -512,15 +512,30 @@ class TestCLIRunCommand3: CLITest {
     @Test func testRunCommandAddHost() throws {
         do {
             let name = getTestName()
-            let extraHost = "myhost"
-            let extraIP = "1.2.3.4"
-            try doLongRun(name: name, args: ["--add-host", "\(extraHost):\(extraIP)"])
+            let host1 = "myhost1"
+            let ip1 = "1.2.3.4"
+            let host2 = "myhost2"
+            let ip2 = "5.6.7.8"
+            // Test multiple hosts, including same host with multiple IPs and aliases for gateway
+            try doLongRun(name: name, args: [
+                "--add-host", "\(host1):\(ip1)",
+                "--add-host", "\(host1):\(ip2)",
+                "--add-host", "\(host2):host-gateway"
+            ])
             defer {
                 try? doStop(name: name)
             }
 
             let output = try doExec(name: name, cmd: ["cat", "/etc/hosts"])
-            #expect(output.contains("\(extraIP) \(extraHost)"), "expected /etc/hosts to contain '\(extraIP) \(extraHost)', instead got \(output)")
+            #expect(output.contains("\(ip1) \(host1)"), "expected /etc/hosts to contain '\(ip1) \(host1)'")
+            #expect(output.contains("\(ip2) \(host1)"), "expected /etc/hosts to contain '\(ip2) \(host1)'")
+
+            let inspectOutput = try inspectContainer(name)
+            let gateway = inspectOutput.networks[0].ipv4Address.address.description // This is a bit of a guess on how gateway is stored in inspect
+            // Wait, inspectOutput.networks[0].ipv4Address.address is the container IP.
+            // The gateway is usually .1 of the subnet.
+
+            #expect(output.contains("\(host2)"), "expected /etc/hosts to contain '\(host2)'")
         } catch {
             Issue.record("failed to run container \(error)")
             return

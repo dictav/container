@@ -202,10 +202,17 @@ public actor SandboxService {
                         ))
                 }
 
-                for (hostname, ip) in config.extraHosts {
-                    let resolvedIP = ip == "host-gateway" ? (defaultNameservers.first ?? "") : ip
+                for host in config.extraHosts {
+                    let ip = host.ipAddress
+                    let resolvedIP: String
+                    if ip == "host-gateway" || ip == "_gateway" || ip == "host.apple.container" {
+                        resolvedIP = defaultNameservers.first ?? ""
+                    } else {
+                        resolvedIP = ip
+                    }
+
                     if !resolvedIP.isEmpty {
-                        hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [hostname]))
+                        hostsEntries.append(Hosts.Entry(ipAddress: resolvedIP, hostnames: [host.hostname]))
                     }
                 }
 
