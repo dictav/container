@@ -237,7 +237,7 @@ struct AttachmentAllocatorTest {
     @Test func testDeallocateWithAliases() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
-        let address = try await allocator.allocate(hostname: "host1", aliases: ["web"])
+        _ = try await allocator.allocate(hostname: "host1", aliases: ["web"])
         try await allocator.deallocate(hostname: "host1")
 
         let lookupHost = try await allocator.lookup(hostname: "host1")
@@ -250,7 +250,7 @@ struct AttachmentAllocatorTest {
     @Test func testDeallocateOneOfMultipleIPsForAlias() async throws {
         let allocator = try AttachmentAllocator(lower: 100, size: 10)
 
-        let address1 = try await allocator.allocate(hostname: "host1", aliases: ["web"])
+        _ = try await allocator.allocate(hostname: "host1", aliases: ["web"])
         let address2 = try await allocator.allocate(hostname: "host2", aliases: ["web"])
 
         try await allocator.deallocate(hostname: "host1")
