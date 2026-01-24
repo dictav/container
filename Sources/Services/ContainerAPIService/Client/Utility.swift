@@ -197,7 +197,13 @@ public struct Utility {
             }
             config.networks = []
         } else {
-            config.networks = try getAttachmentConfigurations(containerId: config.id, networks: parsedNetworks, aliases: management.networkAlias)
+            let baseDomain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            config.networks = try getAttachmentConfigurations(
+                containerId: config.id,
+                networks: parsedNetworks,
+                aliases: management.networkAlias,
+                dnsDomain: baseDomain
+            )
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
                 guard case .running(_, _) = network else {
@@ -209,10 +215,11 @@ public struct Utility {
         if management.dnsDisabled {
             config.dns = nil
         } else {
-            var domain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            let baseDomain = management.dnsDomain ?? DefaultsStore.getOptional(key: .defaultDNSDomain)
+            var domain = baseDomain
             let firstNetworkName = parsedNetworks.first?.name ?? ClientNetwork.defaultNetworkName
-            if let baseDomain = domain, firstNetworkName != ClientNetwork.defaultNetworkName, !firstNetworkName.isEmpty {
-                domain = "\(firstNetworkName).\(baseDomain)"
+            if let baseDomainValue = baseDomain, firstNetworkName != ClientNetwork.defaultNetworkName, !firstNetworkName.isEmpty {
+                domain = "\(firstNetworkName).\(baseDomainValue)"
             }
 
             config.dns = .init(
@@ -251,15 +258,18 @@ public struct Utility {
         return (config, kernel)
     }
 
-    static func getAttachmentConfigurations(containerId: String, networks: [Parser.ParsedNetwork], aliases: [String]) throws -> [AttachmentConfiguration] {
+    static func getAttachmentConfigurations(
+        containerId: String,
+        networks: [Parser.ParsedNetwork],
+        aliases: [String],
+        dnsDomain: String? = DefaultsStore.getOptional(key: .defaultDNSDomain)
+    ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
             if let mac = network.macAddress {
                 try validMACAddress(mac)
             }
         }
-
-        let dnsDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
 
         func getHostname(for networkName: String) -> String {
             if let dnsDomain = dnsDomain, !containerId.contains(".") {
@@ -269,20 +279,29 @@ public struct Utility {
                     return "\(containerId).\(networkName).\(dnsDomain)."
                 }
             } else {
-                return containerId.hasSuffix(".") ? containerId : "\(containerId)."
+                if containerId.contains(".") {
+                    return containerId.hasSuffix(".") ? containerId : "\(containerId)."
+                } else {
+                    return containerId
+                }
             }
         }
 
         func getAliases(for networkName: String) -> [String] {
             return aliases.map { alias in
-                if let dnsDomain = dnsDomain, !alias.contains(".") {
+                if let dnsDomain = dnsDomain {
+                    let cleanAlias = alias.hasSuffix(".") ? String(alias.dropLast()) : alias
                     if networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty {
-                        return "\(alias).\(dnsDomain)."
+                        return "\(cleanAlias).\(dnsDomain)."
                     } else {
-                        return "\(alias).\(networkName).\(dnsDomain)."
+                        return "\(cleanAlias).\(networkName).\(dnsDomain)."
                     }
                 } else {
-                    return alias.hasSuffix(".") ? alias : "\(alias)."
+                    if alias.contains(".") {
+                        return alias.hasSuffix(".") ? alias : "\(alias)."
+                    } else {
+                        return alias
+                    }
                 }
             }
         }

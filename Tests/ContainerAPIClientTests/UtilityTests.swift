@@ -127,7 +127,8 @@ struct UtilityTests {
         let defaultNet = try Utility.getAttachmentConfigurations(
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "default", macAddress: nil)],
-            aliases: []
+            aliases: [],
+            dnsDomain: "container"
         )
         #expect(defaultNet.count == 1)
         #expect(defaultNet[0].network == "default")
@@ -137,7 +138,8 @@ struct UtilityTests {
         let customNet = try Utility.getAttachmentConfigurations(
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
-            aliases: []
+            aliases: [],
+            dnsDomain: "container"
         )
         #expect(customNet.count == 1)
         #expect(customNet[0].network == "mynet")
@@ -150,7 +152,8 @@ struct UtilityTests {
                 Parser.ParsedNetwork(name: "default", macAddress: nil),
                 Parser.ParsedNetwork(name: "mynet", macAddress: nil),
             ],
-            aliases: []
+            aliases: [],
+            dnsDomain: "container"
         )
         #expect(multiNet.count == 2)
         #expect(multiNet[0].options.hostname == "con1.container.")
@@ -160,52 +163,36 @@ struct UtilityTests {
         let fqdnNet = try Utility.getAttachmentConfigurations(
             containerId: "con1.custom.domain",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
-            aliases: []
+            aliases: [],
+            dnsDomain: "container"
         )
         #expect(fqdnNet[0].options.hostname == "con1.custom.domain.")
     }
 
     @Test("Hierarchical DNS registration without base domain")
     func testGetAttachmentConfigurationsNoBaseDomain() throws {
-        let originalDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
-        DefaultsStore.unset(key: .defaultDNSDomain)
-        defer {
-            if let original = originalDomain {
-                DefaultsStore.set(value: original, key: .defaultDNSDomain)
-            }
-        }
-
         let result = try Utility.getAttachmentConfigurations(
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
-            aliases: []
+            aliases: [],
+            dnsDomain: nil
         )
         #expect(result[0].options.hostname == "con1")
     }
 
     @Test("Network alias FQDN generation")
     func testGetAttachmentConfigurationsAliases() throws {
-        // Mock default domain
-        let originalDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
-        DefaultsStore.set(value: "container", key: .defaultDNSDomain)
-        defer {
-            if let original = originalDomain {
-                DefaultsStore.set(value: original, key: .defaultDNSDomain)
-            } else {
-                DefaultsStore.unset(key: .defaultDNSDomain)
-            }
-        }
-
         let result = try Utility.getAttachmentConfigurations(
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
-            aliases: ["web", "db.custom.", "api.extra"]
+            aliases: ["web", "db.custom.", "api.extra"],
+            dnsDomain: "container"
         )
         #expect(result.count == 1)
         let options = result[0].options
         #expect(options.aliases.count == 3)
         #expect(options.aliases.contains("web.mynet.container."))
-        #expect(options.aliases.contains("db.custom."))
-        #expect(options.aliases.contains("api.extra."))
+        #expect(options.aliases.contains("db.custom.mynet.container."))
+        #expect(options.aliases.contains("api.extra.mynet.container."))
     }
 }
