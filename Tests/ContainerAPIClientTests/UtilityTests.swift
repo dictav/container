@@ -126,7 +126,8 @@ struct UtilityTests {
         // Test default network (legacy behavior)
         let defaultNet = try Utility.getAttachmentConfigurations(
             containerId: "con1",
-            networks: [Parser.ParsedNetwork(name: "default", macAddress: nil)]
+            networks: [Parser.ParsedNetwork(name: "default", macAddress: nil)],
+            aliases: []
         )
         #expect(defaultNet.count == 1)
         #expect(defaultNet[0].network == "default")
@@ -135,7 +136,8 @@ struct UtilityTests {
         // Test custom network (hierarchical behavior)
         let customNet = try Utility.getAttachmentConfigurations(
             containerId: "con1",
-            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
+            aliases: []
         )
         #expect(customNet.count == 1)
         #expect(customNet[0].network == "mynet")
@@ -147,7 +149,8 @@ struct UtilityTests {
             networks: [
                 Parser.ParsedNetwork(name: "default", macAddress: nil),
                 Parser.ParsedNetwork(name: "mynet", macAddress: nil),
-            ]
+            ],
+            aliases: []
         )
         #expect(multiNet.count == 2)
         #expect(multiNet[0].options.hostname == "con1.container.")
@@ -156,7 +159,8 @@ struct UtilityTests {
         // Test fully-qualified container ID (preserved)
         let fqdnNet = try Utility.getAttachmentConfigurations(
             containerId: "con1.custom.domain",
-            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
+            aliases: []
         )
         #expect(fqdnNet[0].options.hostname == "con1.custom.domain.")
     }
@@ -173,7 +177,8 @@ struct UtilityTests {
 
         let result = try Utility.getAttachmentConfigurations(
             containerId: "con1",
-            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)]
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
+            aliases: []
         )
         #expect(result[0].options.hostname == "con1")
     }
