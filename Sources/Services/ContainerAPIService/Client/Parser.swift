@@ -867,6 +867,32 @@ public struct Parser {
         return !label.ranges(of: pattern).isEmpty
     }
 
+    // MARK: Hosts
+
+    public static func addHosts(_ rawHosts: [String]) throws -> [ContainerConfiguration.ExtraHost] {
+        return try rawHosts.map { host in
+            let parts = host.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else {
+                throw ContainerizationError(.invalidArgument, message: "invalid add-host format \(host), expected host:ip")
+            }
+            let hostname = String(parts[0])
+            let ip = String(parts[1])
+
+            guard Self.isValidDomainName(hostname) else {
+                throw ContainerizationError(.invalidArgument, message: "invalid hostname '\(hostname)' in add-host")
+            }
+
+            // Validate IP address (unless it's a special keyword)
+            if !ContainerConfiguration.ExtraHost.specialKeywords.contains(ip) {
+                if (try? IPAddress(ip)) == nil {
+                    throw ContainerizationError(.invalidArgument, message: "invalid IP address '\(ip)' in add-host")
+                }
+            }
+
+            return ContainerConfiguration.ExtraHost(hostname: hostname, ipAddress: ip)
+        }
+    }
+
     // MARK: Miscellaneous
 
     public static func parseBool(string: String) -> Bool? {

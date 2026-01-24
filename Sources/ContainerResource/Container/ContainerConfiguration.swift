@@ -51,6 +51,18 @@ public struct ContainerConfiguration: Sendable, Codable {
     public var ssh: Bool = false
     /// Whether to mount the rootfs as read-only.
     public var readOnly: Bool = false
+    /// Extra host-to-IP mappings to add to /etc/hosts.
+    public var extraHosts: [ExtraHost] = []
+
+    public struct ExtraHost: Sendable, Codable {
+        public static let specialKeywords: Set<String> = ["host-gateway"]
+        public let hostname: String
+        public let ipAddress: String
+        public init(hostname: String, ipAddress: String) {
+            self.hostname = hostname
+            self.ipAddress = ipAddress
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -70,6 +82,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         case virtualization
         case ssh
         case readOnly
+        case extraHosts
     }
 
     /// Create a configuration from the supplied Decoder, initializing missing
@@ -100,6 +113,7 @@ public struct ContainerConfiguration: Sendable, Codable {
         virtualization = try container.decodeIfPresent(Bool.self, forKey: .virtualization) ?? false
         ssh = try container.decodeIfPresent(Bool.self, forKey: .ssh) ?? false
         readOnly = try container.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false
+        extraHosts = try container.decodeIfPresent([ExtraHost].self, forKey: .extraHosts) ?? []
     }
 
     public struct DNSConfiguration: Sendable, Codable {
