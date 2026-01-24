@@ -52,21 +52,29 @@ actor AttachmentAllocator {
     /// Free an allocated network address by hostname.
     @discardableResult
     func deallocate(hostname: String) async throws -> UInt32? {
-        guard let index = hostnames[hostname]?.first else {
+        // Retrieve all indices associated with this hostname.
+        guard let indices = hostnames[hostname], !indices.isEmpty else {
             return nil
         }
 
-        if let names = ipToNames.removeValue(forKey: index) {
-            for name in names {
-                hostnames[name]?.remove(index)
-                if hostnames[name]?.isEmpty == true {
-                    hostnames.removeValue(forKey: name)
+        // Preserve one representative index to return for compatibility.
+        let representative = indices.first
+
+        // Deallocate and clean up all indices associated with this hostname.
+        for index in indices {
+            if let names = ipToNames.removeValue(forKey: index) {
+                for name in names {
+                    hostnames[name]?.remove(index)
+                    if hostnames[name]?.isEmpty == true {
+                        hostnames.removeValue(forKey: name)
+                    }
                 }
             }
+
+            try allocator.release(index)
         }
 
-        try allocator.release(index)
-        return index
+        return representative
     }
 
     /// If no addresses are allocated, prevent future allocations and return true.

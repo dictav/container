@@ -137,6 +137,12 @@ public actor NetworkService: Sendable {
         var attachments = [Attachment]()
         for index in indices {
             guard let macAddress = macAddresses[index] else {
+                log?.warning(
+                    "missing MAC address for allocated index during lookup",
+                    metadata: [
+                        "hostname": "\(hostname)",
+                        "index": "\(index)",
+                    ])
                 continue
             }
             let address = IPv4Address(index)

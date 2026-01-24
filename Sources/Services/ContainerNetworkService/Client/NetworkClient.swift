@@ -85,12 +85,13 @@ extension NetworkClient {
         let client = createClient()
 
         let response = try await client.send(request)
-        if let attachments = try? response.attachments() {
-            return attachments
+        if let attachmentsData = response.dataNoCopy(key: NetworkKeys.attachments.rawValue) {
+            return try JSONDecoder().decode([Attachment].self, from: attachmentsData)
         }
-        return try response.dataNoCopy(key: NetworkKeys.attachment.rawValue).map {
-            try [JSONDecoder().decode(Attachment.self, from: $0)]
-        } ?? []
+        if let attachmentData = response.dataNoCopy(key: NetworkKeys.attachment.rawValue) {
+            return [try JSONDecoder().decode(Attachment.self, from: attachmentData)]
+        }
+        return []
     }
 
     public func disableAllocator() async throws -> Bool {

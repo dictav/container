@@ -268,10 +268,8 @@ public struct Utility {
                 } else {
                     return "\(containerId).\(networkName).\(dnsDomain)."
                 }
-            } else if containerId.contains(".") {
-                return "\(containerId)."
             } else {
-                return containerId
+                return containerId.hasSuffix(".") ? containerId : "\(containerId)."
             }
         }
 
@@ -283,10 +281,8 @@ public struct Utility {
                     } else {
                         return "\(alias).\(networkName).\(dnsDomain)."
                     }
-                } else if alias.contains(".") {
-                    return "\(alias)."
                 } else {
-                    return alias
+                    return alias.hasSuffix(".") ? alias : "\(alias)."
                 }
             }
         }

@@ -182,4 +182,30 @@ struct UtilityTests {
         )
         #expect(result[0].options.hostname == "con1")
     }
+
+    @Test("Network alias FQDN generation")
+    func testGetAttachmentConfigurationsAliases() throws {
+        // Mock default domain
+        let originalDomain = DefaultsStore.getOptional(key: .defaultDNSDomain)
+        DefaultsStore.set(value: "container", key: .defaultDNSDomain)
+        defer {
+            if let original = originalDomain {
+                DefaultsStore.set(value: original, key: .defaultDNSDomain)
+            } else {
+                DefaultsStore.unset(key: .defaultDNSDomain)
+            }
+        }
+
+        let result = try Utility.getAttachmentConfigurations(
+            containerId: "con1",
+            networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
+            aliases: ["web", "db.custom.", "api.extra"]
+        )
+        #expect(result.count == 1)
+        let options = result[0].options
+        #expect(options.aliases.count == 3)
+        #expect(options.aliases.contains("web.mynet.container."))
+        #expect(options.aliases.contains("db.custom."))
+        #expect(options.aliases.contains("api.extra."))
+    }
 }
