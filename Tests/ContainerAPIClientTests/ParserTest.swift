@@ -894,7 +894,7 @@ struct ParserTest {
 
     @Test
     func testAddHostsSpecialKeywords() throws {
-        let keywords = ["host-gateway", "_gateway", "host.apple.container"]
+        let keywords = ["host-gateway"]
         for keyword in keywords {
             let result = try Parser.addHosts(["myhost:\(keyword)"])
             #expect(result.count == 1)

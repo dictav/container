@@ -96,7 +96,7 @@ public struct Flags {
         @Option(
             name: .long,
             help: .init(
-                "Add a custom host-to-IP mapping (host:ip). The ip may be an address or one of: host-gateway, _gateway, host.apple.container",
+                "Add a custom host-to-IP mapping (host:ip). The ip may be an address or the special keyword 'host-gateway'.",
                 valueName: "host:ip"
             )
         )
