@@ -128,7 +128,7 @@ struct UtilityTests {
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "default", macAddress: nil)],
             aliases: [],
-            dnsDomain: "container"
+            baseDomain: "container"
         )
         #expect(defaultNet.count == 1)
         #expect(defaultNet[0].network == "default")
@@ -139,7 +139,7 @@ struct UtilityTests {
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
             aliases: [],
-            dnsDomain: "container"
+            baseDomain: "container"
         )
         #expect(customNet.count == 1)
         #expect(customNet[0].network == "mynet")
@@ -153,7 +153,7 @@ struct UtilityTests {
                 Parser.ParsedNetwork(name: "mynet", macAddress: nil),
             ],
             aliases: [],
-            dnsDomain: "container"
+            baseDomain: "container"
         )
         #expect(multiNet.count == 2)
         #expect(multiNet[0].options.hostname == "con1.container.")
@@ -164,7 +164,7 @@ struct UtilityTests {
             containerId: "con1.custom.domain",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
             aliases: [],
-            dnsDomain: "container"
+            baseDomain: "container"
         )
         #expect(fqdnNet[0].options.hostname == "con1.custom.domain.")
     }
@@ -175,7 +175,7 @@ struct UtilityTests {
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
             aliases: [],
-            dnsDomain: nil
+            baseDomain: nil
         )
         #expect(result[0].options.hostname == "con1")
     }
@@ -186,7 +186,7 @@ struct UtilityTests {
             containerId: "con1",
             networks: [Parser.ParsedNetwork(name: "mynet", macAddress: nil)],
             aliases: ["web", "db.custom.", "api.extra"],
-            dnsDomain: "container"
+            baseDomain: "container"
         )
         #expect(result.count == 1)
         let options = result[0].options

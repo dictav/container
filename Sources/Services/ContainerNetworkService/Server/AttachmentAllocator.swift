@@ -29,7 +29,7 @@ actor AttachmentAllocator {
         )
     }
 
-    /// Allocate a network address for a host.
+    /// Allocate a network address for a host. The address will be registered for the hostname and all provided aliases.
     func allocate(hostname: String, aliases: [String] = []) async throws -> UInt32 {
         let index: UInt32
         // Client is responsible for ensuring two containers don't use same hostname, so provide existing IP if hostname exists
@@ -82,7 +82,7 @@ actor AttachmentAllocator {
         allocator.disableAllocator()
     }
 
-    /// Retrieve the allocator index for a hostname.
+    /// Retrieve the allocator indices for a hostname or alias.
     func lookup(hostname: String) async throws -> [UInt32] {
         if let indices = hostnames[hostname] {
             return Array(indices)

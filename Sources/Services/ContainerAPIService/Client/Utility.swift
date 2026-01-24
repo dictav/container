@@ -202,7 +202,7 @@ public struct Utility {
                 containerId: config.id,
                 networks: parsedNetworks,
                 aliases: management.networkAlias,
-                dnsDomain: baseDomain
+                baseDomain: baseDomain
             )
             for attachmentConfiguration in config.networks {
                 let network: NetworkState = try await ClientNetwork.get(id: attachmentConfiguration.network)
@@ -262,7 +262,7 @@ public struct Utility {
         containerId: String,
         networks: [Parser.ParsedNetwork],
         aliases: [String],
-        dnsDomain: String? = DefaultsStore.getOptional(key: .defaultDNSDomain)
+        baseDomain: String? = DefaultsStore.getOptional(key: .defaultDNSDomain)
     ) throws -> [AttachmentConfiguration] {
         // Validate MAC addresses if provided
         for network in networks {
@@ -272,11 +272,11 @@ public struct Utility {
         }
 
         func getHostname(for networkName: String) -> String {
-            if let dnsDomain = dnsDomain, !containerId.contains(".") {
+            if let domain = baseDomain, !containerId.contains(".") {
                 if networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty {
-                    return "\(containerId).\(dnsDomain)."
+                    return "\(containerId).\(domain)."
                 } else {
-                    return "\(containerId).\(networkName).\(dnsDomain)."
+                    return "\(containerId).\(networkName).\(domain)."
                 }
             } else {
                 if containerId.contains(".") {
@@ -289,12 +289,12 @@ public struct Utility {
 
         func getAliases(for networkName: String) -> [String] {
             return aliases.map { alias in
-                if let dnsDomain = dnsDomain {
+                if let domain = baseDomain {
                     let cleanAlias = alias.hasSuffix(".") ? String(alias.dropLast()) : alias
                     if networkName == ClientNetwork.defaultNetworkName || networkName.isEmpty {
-                        return "\(cleanAlias).\(dnsDomain)."
+                        return "\(cleanAlias).\(domain)."
                     } else {
-                        return "\(cleanAlias).\(networkName).\(dnsDomain)."
+                        return "\(cleanAlias).\(networkName).\(domain)."
                     }
                 } else {
                     if alias.contains(".") {

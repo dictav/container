@@ -85,11 +85,11 @@ extension NetworkClient {
         let client = createClient()
 
         let response = try await client.send(request)
-        if let attachmentsData = response.dataNoCopy(key: NetworkKeys.attachments.rawValue) {
-            return try JSONDecoder().decode([Attachment].self, from: attachmentsData)
+        if let attachments = try? response.attachments() {
+            return attachments
         }
-        if let attachmentData = response.dataNoCopy(key: NetworkKeys.attachment.rawValue) {
-            return [try JSONDecoder().decode(Attachment.self, from: attachmentData)]
+        if let attachment = try? response.attachment() {
+            return [attachment]
         }
         return []
     }
