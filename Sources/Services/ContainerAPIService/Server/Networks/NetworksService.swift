@@ -268,7 +268,7 @@ public actor NetworksService {
     }
 
     private func registerService(configuration: NetworkConfiguration) async throws {
-        guard configuration.mode == .nat else {
+        guard configuration.mode == .nat || configuration.mode == .hostOnly else {
             throw ContainerizationError(.invalidArgument, message: "unsupported network mode \(configuration.mode.rawValue)")
         }
 
@@ -281,6 +281,8 @@ public actor NetworksService {
             configuration.id,
             "--service-identifier",
             serviceIdentifier,
+            "--mode",
+            configuration.mode.rawValue,
         ]
 
         if let ipv4Subnet = configuration.ipv4Subnet {
