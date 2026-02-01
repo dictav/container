@@ -40,6 +40,7 @@ The project uses a modular DNS resolution system located in `Sources/DNSServer`.
 
 ### Image Management
 - **OCI Layout**: Images are stored in the `images/` directory following the OCI image layout specification.
+- **Compression**: Supports Gzip and Zstd (zst) compressed layers. Media types `application/vnd.oci.image.layer.v1.tar+zstd` and `application/vnd.docker.image.rootfs.diff.tar.zstd` are mapped to the zstd filter.
 - **RootFS Snapshots**: When a container is created, a copy-on-write snapshot (using APFS clones) of the image's rootfs is created in the container's bundle. This allows for near-instant container creation and minimal disk overhead.
 - **Init Image**: A special `init` image is used to bootstrap the container's internal environment before the main workload starts.
 
@@ -128,6 +129,10 @@ The project uses a modular DNS resolution system located in `Sources/DNSServer`.
 - Failing to check this can lead to confusion if you are unknowingly editing or debugging a local version of a dependency instead of the upstream one.
 - **Example**: If `containerization` is being developed locally, its entry in `workspace-state.json` will point to the local path (e.g., `../containerization`). This is crucial for verifying that the expected code is being linked and compiled.
 
+### Dependency Management
+- **System Libraries**: Prefer linking against system-provided libraries (e.g., `libarchive`, `libzstd`, `liblzma`) available in the macOS SDK over Homebrew or other third-party managers. This ensures portability and avoids runtime issues in background services.
+- **Libarchive Support**: When supporting new compression formats, ensure `ArchiveReader` explicitly calls the relevant `archive_read_support_filter_xxx` function, as the system-provided `libarchive` may require explicit enablement for certain filters even when `archive_read_support_filter_all` is used.
+
 ### Debugging Logs
 - Use `container system logs` to stream logs from all active background services.
 - Individual component logs are often stored in the container bundle or under the `Application Support` root.
@@ -137,6 +142,7 @@ The project uses a modular DNS resolution system located in `Sources/DNSServer`.
 - **Network Deletion Failures**: Often caused by stale "busy" states or incorrect checks for active containers. Prefer actor-level locks and atomic state checks over manual allocator disabling when the higher-level service already guarantees safety. (Note: Redundant checks in the network plugin can cause false "busy" errors even when no containers are attached.)
 - **Keychain Error -25308**: If `container image pull` fails with an unhandled error status -25308, it indicates the background service is attempting to access the keychain without a proper security context. Ensure the lookup is performed on the client side.
 - **Registry Authentication (GHCR 403)**: Some registries (like GHCR) return multiple authentication challenges (Bearer + Basic) in the `WWW-Authenticate` header. The `containerization` library uses a `Scanner`-based parser to correctly handle comma-separated challenges and key-value pairs (including quoted strings and spaces), ensuring that `Bearer` challenges are correctly identified and processed.
+- **Image Load Failures (zstd)**: If `container image load` fails with a "fatal error" (code -30) on a `.tar.zst` file, verify that `ArchiveReader` is using `archive_read_open_filename` instead of `archive_read_open_fd`. The latter can sometimes fail to correctly identify the zstd filter in certain environments.
 
 ## 8. Quick Reference (Cheat Sheet)
 
