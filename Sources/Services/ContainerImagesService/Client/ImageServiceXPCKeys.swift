@@ -31,6 +31,7 @@ public enum ImagesServiceXPCKeys: String {
     case imageNewReference
     case imageDescription
     case imageDescriptions
+    case imageAuthentication
     case filesystem
     case ociPlatform
     case insecureFlag

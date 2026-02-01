@@ -24,6 +24,11 @@ import ContainerizationOCI
 import Foundation
 import Logging
 
+private struct XPCAuth: Codable {
+    let username: String
+    let password: String
+}
+
 public struct ImagesServiceHarness: Sendable {
     let log: Logging.Logger
     let service: ImagesService
@@ -50,9 +55,15 @@ public struct ImagesServiceHarness: Sendable {
         let insecure = message.bool(key: .insecureFlag)
         let maxConcurrentDownloads = message.int64(key: .maxConcurrentDownloads)
 
+        var auth: Authentication?
+        if let authData = message.dataNoCopy(key: .imageAuthentication) {
+            let xpcAuth = try JSONDecoder().decode(XPCAuth.self, from: authData)
+            auth = BasicAuthentication(username: xpcAuth.username, password: xpcAuth.password)
+        }
+
         let progressUpdateService = ProgressUpdateService(message: message)
         let imageDescription = try await service.pull(
-            reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
+            reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler, maxConcurrentDownloads: Int(maxConcurrentDownloads))
 
         let imageData = try JSONEncoder().encode(imageDescription)
         let reply = message.reply()
@@ -76,8 +87,14 @@ public struct ImagesServiceHarness: Sendable {
         }
         let insecure = message.bool(key: .insecureFlag)
 
+        var auth: Authentication?
+        if let authData = message.dataNoCopy(key: .imageAuthentication) {
+            let xpcAuth = try JSONDecoder().decode(XPCAuth.self, from: authData)
+            auth = BasicAuthentication(username: xpcAuth.username, password: xpcAuth.password)
+        }
+
         let progressUpdateService = ProgressUpdateService(message: message)
-        try await service.push(reference: ref, platform: platform, insecure: insecure, progressUpdate: progressUpdateService?.handler)
+        try await service.push(reference: ref, platform: platform, insecure: insecure, auth: auth, progressUpdate: progressUpdateService?.handler)
 
         let reply = message.reply()
         return reply

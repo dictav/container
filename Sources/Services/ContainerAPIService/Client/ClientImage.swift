@@ -25,6 +25,11 @@ import ContainerizationOCI
 import Foundation
 import TerminalProgress
 
+private struct XPCAuth: Codable {
+    let username: String
+    let password: String
+}
+
 // MARK: ClientImage structure
 
 public struct ClientImage: Sendable {
@@ -259,7 +264,8 @@ extension ClientImage {
         let request = newRequest(.imagePull)
 
         let reference = try self.normalizeReference(reference)
-        guard let host = try Reference.parse(reference).domain else {
+        let r = try Reference.parse(reference)
+        guard let host = r.domain else {
             throw ContainerizationError(.invalidArgument, message: "could not extract host from reference \(reference)")
         }
 
@@ -269,6 +275,31 @@ extension ClientImage {
         let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
         request.set(key: .maxConcurrentDownloads, value: Int64(maxConcurrentDownloads))
+
+        // Lookup authentication in keychain on the client side
+        var lookupHost = host
+        if host == Self.legacyDockerRegistryHost {
+            lookupHost = Self.dockerRegistryHost
+        }
+
+        let keychain = KeychainHelper(id: Constants.keychainID)
+        if let auth = try? keychain.lookup(domain: lookupHost) {
+            let mirror = Mirror(reflecting: auth)
+            var username: String?
+            var password: String?
+            for child in mirror.children {
+                if child.label == "username" {
+                    username = child.value as? String
+                } else if child.label == "password" {
+                    password = child.value as? String
+                }
+            }
+            if let username, let password {
+                let xpcAuth = XPCAuth(username: username, password: password)
+                let authData = try JSONEncoder().encode(xpcAuth)
+                request.set(key: .imageAuthentication, value: authData)
+            }
+        }
 
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
@@ -386,6 +417,31 @@ extension ClientImage {
         request.set(key: .insecureFlag, value: insecure)
 
         try request.set(platform: platform)
+
+        // Lookup authentication in keychain on the client side
+        var lookupHost = host
+        if host == Self.legacyDockerRegistryHost {
+            lookupHost = Self.dockerRegistryHost
+        }
+
+        let keychain = KeychainHelper(id: Constants.keychainID)
+        if let auth = try? keychain.lookup(domain: lookupHost) {
+            let mirror = Mirror(reflecting: auth)
+            var username: String?
+            var password: String?
+            for child in mirror.children {
+                if child.label == "username" {
+                    username = child.value as? String
+                } else if child.label == "password" {
+                    password = child.value as? String
+                }
+            }
+            if let username, let password {
+                let xpcAuth = XPCAuth(username: username, password: password)
+                let authData = try JSONEncoder().encode(xpcAuth)
+                request.set(key: .imageAuthentication, value: authData)
+            }
+        }
 
         var progressUpdateClient: ProgressUpdateClient?
         if let progressUpdate {
