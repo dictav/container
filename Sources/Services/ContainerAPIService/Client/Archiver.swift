@@ -103,11 +103,7 @@ public final class Archiver: Sendable {
         let destination = destination.standardizedFileURL
 
         // TODO: ArchiveReader needs some enhancement to support buffered uncompression
-        let reader = try ArchiveReader(
-            format: .paxRestricted,
-            filter: .gzip,
-            file: source
-        )
+        let reader = try ArchiveReader(file: source)
 
         for (entry, data) in reader {
             guard let path = entry.path else {
