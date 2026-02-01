@@ -284,16 +284,9 @@ extension ClientImage {
 
         let keychain = KeychainHelper(id: Constants.keychainID)
         if let auth = try? keychain.lookup(domain: lookupHost) {
-            let mirror = Mirror(reflecting: auth)
-            var username: String?
-            var password: String?
-            for child in mirror.children {
-                if child.label == "username" {
-                    username = child.value as? String
-                } else if child.label == "password" {
-                    password = child.value as? String
-                }
-            }
+            let username = (auth as? BasicAuthentication)?.username
+            let password = (auth as? BasicAuthentication)?.password
+
             if let username, let password {
                 let xpcAuth = XPCAuth(username: username, password: password)
                 let authData = try JSONEncoder().encode(xpcAuth)
@@ -416,26 +409,18 @@ extension ClientImage {
         let insecure = try scheme.schemeFor(host: host) == .http
         request.set(key: .insecureFlag, value: insecure)
 
-        try request.set(platform: platform)
-
-        // Lookup authentication in keychain on the client side
         var lookupHost = host
         if host == Self.legacyDockerRegistryHost {
             lookupHost = Self.dockerRegistryHost
         }
 
+        try request.set(platform: platform)
+
         let keychain = KeychainHelper(id: Constants.keychainID)
         if let auth = try? keychain.lookup(domain: lookupHost) {
-            let mirror = Mirror(reflecting: auth)
-            var username: String?
-            var password: String?
-            for child in mirror.children {
-                if child.label == "username" {
-                    username = child.value as? String
-                } else if child.label == "password" {
-                    password = child.value as? String
-                }
-            }
+            let username = (auth as? BasicAuthentication)?.username
+            let password = (auth as? BasicAuthentication)?.password
+
             if let username, let password {
                 let xpcAuth = XPCAuth(username: username, password: password)
                 let authData = try JSONEncoder().encode(xpcAuth)

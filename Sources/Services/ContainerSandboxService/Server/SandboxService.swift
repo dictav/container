@@ -917,8 +917,11 @@ public actor SandboxService {
 
         czConfig.process.terminal = process.terminal
         czConfig.process.workingDirectory = process.workingDirectory
-        czConfig.process.rlimits = process.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+        czConfig.process.rlimits = process.rlimits.compactMap { limit in
+            guard let kind = try? LinuxRLimit.Kind(limit.limit) else {
+                return nil
+            }
+            return LinuxRLimit(kind: kind, hard: limit.hard, soft: limit.soft)
         }
         switch process.user {
         case .raw(let name):
@@ -959,8 +962,11 @@ public actor SandboxService {
 
         proc.terminal = config.terminal
         proc.workingDirectory = config.workingDirectory
-        proc.rlimits = config.rlimits.map {
-            .init(type: $0.limit, hard: $0.hard, soft: $0.soft)
+        proc.rlimits = config.rlimits.compactMap { limit in
+            guard let kind = try? LinuxRLimit.Kind(limit.limit) else {
+                return nil
+            }
+            return LinuxRLimit(kind: kind, hard: limit.hard, soft: limit.soft)
         }
         switch config.user {
         case .raw(let name):

@@ -216,27 +216,12 @@ extension ImagesService {
     private static func withAuthentication<T>(
         ref: String, provided: Authentication? = nil, _ body: @Sendable @escaping (_ auth: Authentication?) async throws -> T?
     ) async throws -> T? {
-        var authentication: Authentication? = provided
-        let ref = try Reference.parse(ref)
-        guard let host = ref.resolvedDomain else {
-            throw ContainerizationError(.invalidArgument, message: "no host specified in image reference: \(ref)")
-        }
-
-        if authentication == nil {
-            authentication = Self.authenticationFromEnv(host: host)
-        }
-
+        let authentication: Authentication? = provided
         do {
             return try await body(authentication)
         } catch let err as RegistryClient.Error {
-            guard case .invalidStatus(_, let status, _) = err else {
+            guard case .invalidStatus(_, _, _) = err else {
                 throw err
-            }
-            guard status == .unauthorized || status == .forbidden else {
-                throw err
-            }
-            guard authentication != nil else {
-                throw ContainerizationError(.internalError, message: "\(String(describing: err)), no credentials found for host \(host)")
             }
             throw err
         }
