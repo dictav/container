@@ -1,0 +1,44 @@
+name: Test develop PR
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: macos-26
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Swift version
+        run: swift --version
+
+      - name: Check formatting
+        run: |
+          ./scripts/install-hawkeye.sh
+          make fmt
+          if ! git diff --quiet -- . ; then
+            echo "❌ The following files require formatting or license header updates:"
+            git diff --name-only -- .
+            exit 1
+          fi
+
+      - name: Check protobuf
+        run: |
+          make protos
+          if ! git diff --quiet -- . ; then
+            echo "❌ Protobuf files are out of sync. Run 'make protos' locally."
+            git diff --name-only -- .
+            exit 1
+          fi
+
+      - name: Build
+        run: make build
+
+      - name: Run Tests
+        run: make test
